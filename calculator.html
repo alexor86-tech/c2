@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <!-- Явное указание кодировки UTF-8 -->
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Простой калькулятор</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f3f4f6;
+    }
+
+    .calculator {
+      width: 320px;
+      background: #111827;
+      color: #f9fafb;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.5);
+      padding: 16px;
+    }
+
+    .display {
+      background: #020617;
+      border-radius: 12px;
+      padding: 12px;
+      text-align: right;
+      min-height: 72px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .display-small {
+      font-size: 14px;
+      color: #9ca3af;
+      min-height: 18px;
+      word-wrap: break-word;
+    }
+
+    .display-main {
+      font-size: 32px;
+      font-weight: 600;
+      word-wrap: break-word;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 14px;
+      font-size: 18px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.05s, box-shadow 0.1s;
+      background: #1f2937;
+      color: #e5e7eb;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+    }
+
+    button.operator {
+      background: #f97316;
+      color: #111827;
+      font-weight: 600;
+    }
+
+    button.control {
+      background: #374151;
+      color: #e5e7eb;
+    }
+
+    /* Красная кнопка очистки (C / AC) */
+    button[data-action="clear"] {
+      background: #dc2626;
+      color: #fef2f2;
+    }
+
+    button.equal {
+      background: #22c55e;
+      color: #022c22;
+      font-weight: 700;
+    }
+
+    button.zero {
+      grid-column: span 2;
+    }
+
+    button:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+    }
+
+    button:focus-visible {
+      outline: 2px solid #60a5fa;
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="calculator" aria-label="Простой калькулятор">
+    <div class="display">
+      <div id="history" class="display-small"></div>
+      <div id="result" class="display-main">0</div>
+    </div>
+    <div class="buttons">
+      <button class="control" data-action="clear">AC</button>
+      <button class="control" data-action="sign">±</button>
+      <button class="control" data-action="percent">%</button>
+      <button class="operator" data-operator="÷">÷</button>
+
+      <button data-digit="7">7</button>
+      <button data-digit="8">8</button>
+      <button data-digit="9">9</button>
+      <button class="operator" data-operator="×">×</button>
+
+      <button data-digit="4">4</button>
+      <button data-digit="5">5</button>
+      <button data-digit="6">6</button>
+      <button class="operator" data-operator="-">−</button>
+
+      <button data-digit="1">1</button>
+      <button data-digit="2">2</button>
+      <button data-digit="3">3</button>
+      <button class="operator" data-operator="+">+</button>
+
+      <button class="zero" data-digit="0">0</button>
+      <button data-digit=".">,</button>
+      <button class="equal" data-action="equals">=</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const resultEl = document.getElementById("result");
+      const historyEl = document.getElementById("history");
+      const buttons = document.querySelector(".buttons");
+
+      let currentValue = "0";
+      let previousValue = null;
+      let operator = null;
+      let justCalculated = false;
+
+      function formatNumber(value) {
+        if (value === "Error") return value;
+        const num = Number(value);
+        if (!Number.isFinite(num)) return "Error";
+
+        // Ограничиваем длину вывода
+        const str = num.toString();
+        if (str.length > 12) {
+          return num.toExponential(6).replace(".", ",");
+        }
+        return str.replace(".", ",");
+      }
+
+      function parseInput(str) {
+        // Заменяем запятую на точку для JS
+        const normalized = String(str).replace(",", ".");
+        const num = Number(normalized);
+        return num;
+      }
+
+      function updateDisplay() {
+        resultEl.textContent = formatNumber(currentValue);
+        const opSymbol = operator || "";
+        historyEl.textContent =
+          previousValue !== null && opSymbol
+            ? formatNumber(previousValue) + " " + opSymbol
+            : "";
+      }
+
+      function clearAll() {
+        currentValue = "0";
+        previousValue = null;
+        operator = null;
+        justCalculated = false;
+        updateDisplay();
+      }
+
+      function handleDigit(digit) {
+        if (justCalculated) {
+          currentValue = digit === "." ? "0." : digit;
+          justCalculated = false;
+          updateDisplay();
+          return;
+        }
+
+        if (digit === ".") {
+          if (currentValue.includes(".") || currentValue.includes(",")) return;
+          currentValue += ".";
+        } else {
+          if (currentValue === "0") {
+            currentValue = digit;
+          } else {
+            currentValue += digit;
+          }
+        }
+        updateDisplay();
+      }
+
+      function handleOperator(nextOperator) {
+        if (currentValue === "Error") {
+          clearAll();
+          return;
+        }
+
+        const inputValue = parseInput(currentValue);
+
+        if (operator && previousValue !== null && !justCalculated) {
+          const result = performCalculation(previousValue, inputValue, operator);
+          currentValue = String(result);
+          previousValue = result;
+        } else {
+          previousValue = inputValue;
+        }
+
+        operator = nextOperator;
+        justCalculated = false;
+        currentValue = "0";
+        updateDisplay();
+      }
+
+      function performCalculation(a, b, op) {
+        if (!Number.isFinite(a) || !Number.isFinite(b)) return NaN;
+        switch (op) {
+          case "+": return a + b;
+          case "-": return a - b;
+          case "×": return a * b;
+          case "÷": return b === 0 ? NaN : a / b;
+          default: return b;
+        }
+      }
+
+      function handleEquals() {
+        if (operator === null || previousValue === null) return;
+
+        const current = parseInput(currentValue);
+        const result = performCalculation(previousValue, current, operator);
+
+        if (!Number.isFinite(result) || Number.isNaN(result)) {
+          currentValue = "Error";
+        } else {
+          currentValue = String(result);
+        }
+
+        historyEl.textContent =
+          formatNumber(previousValue) + " " + operator + " " + formatNumber(current);
+
+        previousValue = null;
+        operator = null;
+        justCalculated = true;
+        resultEl.textContent = formatNumber(currentValue);
+      }
+
+      function handlePercent() {
+        const num = parseInput(currentValue);
+        if (!Number.isFinite(num)) return;
+        currentValue = String(num / 100);
+        updateDisplay();
+      }
+
+      function handleSign() {
+        const num = parseInput(currentValue);
+        if (!Number.isFinite(num)) return;
+        currentValue = String(-num);
+        updateDisplay();
+      }
+
+      buttons.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLButtonElement)) return;
+
+        const digit = target.getAttribute("data-digit");
+        const op = target.getAttribute("data-operator");
+        const action = target.getAttribute("data-action");
+
+        if (digit !== null) {
+          if (digit === ",") {
+            handleDigit(".");
+          } else {
+            handleDigit(digit);
+          }
+          return;
+        }
+
+        if (op !== null) {
+          handleOperator(op);
+          return;
+        }
+
+        if (action === "clear") {
+          clearAll();
+        } else if (action === "equals") {
+          handleEquals();
+        } else if (action === "percent") {
+          handlePercent();
+        } else if (action === "sign") {
+          handleSign();
+        }
+      });
+
+      // Инициализация
+      updateDisplay();
+    })();
+  </script>
+</body>
+</html>
+
+
